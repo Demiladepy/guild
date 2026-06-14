@@ -23,6 +23,15 @@ export function formatJobError(err: unknown, step: string): string {
     return `[${step}] x402 payment failed — confirm X402_PAYTO_ADDRESS, dev server restarted, specialist redelegation active, and x402.org facilitator reachable on Sepolia`;
   }
 
+  if (
+    lower.includes("relayer") ||
+    lower.includes("7702") ||
+    lower.includes("authorization") ||
+    lower.includes("webhook timeout")
+  ) {
+    return `[${step}] 1Shot relayer — set CHAIN_MODE=mainnet, RELAYER_MODE=relayer, fund specialist mainnet ETH+USDC, and NEXT_PUBLIC_APP_URL to a public tunnel for /api/relayer-webhook`;
+  }
+
   if (lower.includes("nonce")) {
     return `[${step}] Nonce conflict — wait for pending txs on contractor or specialist EOAs, then retry`;
   }

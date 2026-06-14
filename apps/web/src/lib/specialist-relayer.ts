@@ -1,7 +1,4 @@
-import { chainId, publicClient } from "@guild/core/config";
-import {
-  decodeDelegations,
-} from "@metamask/smart-accounts-kit/utils";
+import { decodeDelegations } from "@metamask/smart-accounts-kit/utils";
 import {
   Implementation,
   toMetaMaskSmartAccount,
@@ -16,18 +13,29 @@ import {
   type Delegation7710,
   type Send7710TransactionParams,
 } from "@guild/core/relayer";
-import type { Hex } from "viem";
-import {
-  encodeFunctionData,
-  erc20Abi,
-  getAddress,
-  parseUnits,
-} from "viem";
+import type { Chain, Hex, PublicClient } from "viem";
+import { createPublicClient, encodeFunctionData, erc20Abi, getAddress, http, parseUnits } from "viem";
 import type { PrivateKeyAccount } from "viem/accounts";
 import { getSmartAccountsEnvironment } from "@metamask/smart-accounts-kit";
 
 const WORK_AMOUNT = parseUnits("0.01", 6);
 const EIP7702_PREFIX = "0xef0100";
+
+export type RelayerSubmitTarget = {
+  relayerUrl: string;
+  chainId: number;
+  chain: Chain;
+  usdc: `0x${string}`;
+  explorerTxUrl: string;
+  rpcUrl: string;
+};
+
+function createTargetPublicClient(target: RelayerSubmitTarget): PublicClient {
+  return createPublicClient({
+    chain: target.chain,
+    transport: http(target.rpcUrl),
+  });
+}
 
 export function getRelayerWebhookUrl(): string {
   const base =
@@ -51,9 +59,11 @@ export function getInferencePayTo(): `0x${string}` {
 
 async function specialistNeeds7702Upgrade(
   specialistAddress: `0x${string}`,
+  target: RelayerSubmitTarget,
+  client: PublicClient,
 ): Promise<boolean> {
-  const environment = getSmartAccountsEnvironment(chainId);
-  const code = await publicClient.getCode({ address: specialistAddress });
+  const environment = getSmartAccountsEnvironment(target.chainId);
+  const code = await client.getCode({ address: specialistAddress });
   if (!code || code === "0x") return true;
 
   const expectedImpl = environment.implementations.EIP7702StatelessDeleGatorImpl
@@ -64,18 +74,24 @@ async function specialistNeeds7702Upgrade(
 
 async function buildAuthorizationList(
   specialistAccount: PrivateKeyAccount,
+  target: RelayerSubmitTarget,
+  client: PublicClient,
 ): Promise<AuthorizationListEntry[] | undefined> {
-  const needsUpgrade = await specialistNeeds7702Upgrade(specialistAccount.address);
+  const needsUpgrade = await specialistNeeds7702Upgrade(
+    specialistAccount.address,
+    target,
+    client,
+  );
   if (!needsUpgrade) return undefined;
 
-  const environment = getSmartAccountsEnvironment(chainId);
-  const nonce = await publicClient.getTransactionCount({
+  const environment = getSmartAccountsEnvironment(target.chainId);
+  const nonce = await client.getTransactionCount({
     address: specialistAccount.address,
     blockTag: "pending",
   });
 
   const auth = await specialistAccount.signAuthorization({
-    chainId,
+    chainId: target.chainId,
     contractAddress: getAddress(
       environment.implementations.EIP7702StatelessDeleGatorImpl,
     ),
@@ -94,20 +110,28 @@ async function buildAuthorizationList(
   ];
 }
 
-export async function submitSpecialistVeniceRelay(params: {
-  specialistAccount: PrivateKeyAccount;
-  redelegatedContext: Hex;
-  memo?: string;
-}): Promise<{
+export async function submitSpecialistVeniceRelay(
+  params: {
+    specialistAccount: PrivateKeyAccount;
+    redelegatedContext: Hex;
+    memo?: string;
+  },
+  target: RelayerSubmitTarget,
+): Promise<{
   taskId: `0x${string}`;
   smartAccountAddress: `0x${string}`;
   feeAmount: bigint;
   workAmount: bigint;
 }> {
-  const capabilities = await getCapabilities([String(chainId)]);
-  const chainCaps = capabilities[String(chainId)];
+  const client = createTargetPublicClient(target);
+  const { relayerUrl } = target;
+
+  const capabilities = await getCapabilities([String(target.chainId)], relayerUrl);
+  const chainCaps = capabilities[String(target.chainId)];
   if (!chainCaps) {
-    throw new Error(`1Shot relayer does not support chain ${chainId}`);
+    throw new Error(
+      `1Shot relayer does not support chain ${target.chainId} at ${relayerUrl}`,
+    );
   }
 
   const usdc =
@@ -117,26 +141,28 @@ export async function submitSpecialistVeniceRelay(params: {
   }
 
   await toMetaMaskSmartAccount({
-    client: publicClient,
+    client,
     implementation: Implementation.Stateless7702,
     address: params.specialistAccount.address,
     signer: { account: params.specialistAccount },
   });
 
-  const feeData = await getFeeData({
-    chainId: String(chainId),
-    token: usdc.address,
-  });
+  const feeData = await getFeeData(
+    { chainId: String(target.chainId), token: usdc.address },
+    relayerUrl,
+  );
 
-  // getFeeData confirms token support + minFee floor; locked send context comes
-  // from estimate7710 per 1Shot skill (not feeData.context) — see README.
   const mockFeeAmount = BigInt(feeData.minFee);
   const payTo = getInferencePayTo();
   const permissionContext = decodeDelegations(params.redelegatedContext).map(
     (delegation) => toRelayerJson(delegation) as Delegation7710,
   );
 
-  const authorizationList = await buildAuthorizationList(params.specialistAccount);
+  const authorizationList = await buildAuthorizationList(
+    params.specialistAccount,
+    target,
+    client,
+  );
 
   function buildSendParams(feeAmount: bigint): Send7710TransactionParams {
     const feeCalldata = encodeFunctionData({
@@ -151,7 +177,7 @@ export async function submitSpecialistVeniceRelay(params: {
     });
 
     return {
-      chainId: String(chainId),
+      chainId: String(target.chainId),
       ...(authorizationList ? { authorizationList } : {}),
       transactions: [
         {
@@ -166,7 +192,7 @@ export async function submitSpecialistVeniceRelay(params: {
   }
 
   let sendParams = buildSendParams(mockFeeAmount);
-  let estimate = await estimate7710(sendParams);
+  let estimate = await estimate7710(sendParams, relayerUrl);
   if (!estimate.success) {
     throw new Error(estimate.error ?? "relayer_estimate7710Transaction failed");
   }
@@ -174,7 +200,7 @@ export async function submitSpecialistVeniceRelay(params: {
   const requiredFee = BigInt(estimate.requiredPaymentAmount ?? mockFeeAmount);
   if (requiredFee !== mockFeeAmount) {
     sendParams = buildSendParams(requiredFee);
-    estimate = await estimate7710(sendParams);
+    estimate = await estimate7710(sendParams, relayerUrl);
     if (!estimate.success) {
       throw new Error(estimate.error ?? "relayer re-estimate failed");
     }
@@ -184,12 +210,15 @@ export async function submitSpecialistVeniceRelay(params: {
     throw new Error("Estimate did not return a signed fee context");
   }
 
-  const taskId = await send7710({
-    ...sendParams,
-    context: estimate.context,
-    destinationUrl: getRelayerWebhookUrl(),
-    memo: params.memo ?? "guild-specialist-venice",
-  });
+  const taskId = await send7710(
+    {
+      ...sendParams,
+      context: estimate.context,
+      destinationUrl: getRelayerWebhookUrl(),
+      memo: params.memo ?? "guild-specialist-venice",
+    },
+    relayerUrl,
+  );
 
   return {
     taskId,

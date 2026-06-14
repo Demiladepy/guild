@@ -20,6 +20,7 @@ export function GuildDashboard() {
       <TopBar
         budgetGranted={Boolean(app.permission)}
         mode={app.mode}
+        settlementMode={app.settlementMode}
       />
 
       {app.toast && (

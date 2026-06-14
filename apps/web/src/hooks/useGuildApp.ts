@@ -42,6 +42,11 @@ import {
   buildSpecialistX402Client,
   runVeniceViaX402,
 } from "@/lib/specialist-client";
+import { getRelayerMode, isRelayerMode } from "@/lib/relayer-mode";
+import {
+  getMainnetRelayerTarget,
+  runVeniceViaRelayer,
+} from "@/lib/relayer-settlement";
 import { verifyRegistriesDeployed, type RegistryStatus } from "@/lib/verify-registry";
 import type {
   Agent,
@@ -364,27 +369,64 @@ export function useGuildApp() {
         "authority",
       );
 
-      step = "x402";
-      setVeniceActive(true);
-      pushLog("Venice inference via x402 delegated payment…", "default");
-
       const specialist = getSpecialistAccount(hireResult.hired.role);
-      const venice = await runVeniceViaX402({
-        specialistAccount: specialist,
-        redelegatedContext: hireResult.redelegation.permissionContext,
-        contractorAddress: contractor.address,
-      });
+      let venice: { content: string; settlementTx: `0x${string}` };
+      let settlementExplorer = explorerTxUrl;
+
+      if (isRelayerMode()) {
+        step = "relayer";
+        setVeniceActive(true);
+        pushLog(
+          "Settlement via 1Shot mainnet relayer · EIP-7702 upgrade on first use",
+          "default",
+        );
+        const mainnetTarget = getMainnetRelayerTarget();
+        settlementExplorer = mainnetTarget.explorerTxUrl;
+
+        const relayResult = await runVeniceViaRelayer({
+          specialistAccount: specialist,
+          redelegatedContext: hireResult.redelegation.permissionContext,
+          memo: `guild-run-${runCount + 1}`,
+          onRelayerStatus: (label, txHash) => {
+            pushLog(
+              label,
+              "default",
+              txHash ? `${mainnetTarget.explorerTxUrl}/${txHash}` : undefined,
+            );
+          },
+        });
+        venice = {
+          content: relayResult.content,
+          settlementTx: relayResult.settlementTx,
+        };
+      } else {
+        step = "x402";
+        setVeniceActive(true);
+        pushLog("Venice inference via x402 delegated payment…", "default");
+
+        const x402Result = await runVeniceViaX402({
+          specialistAccount: specialist,
+          redelegatedContext: hireResult.redelegation.permissionContext,
+          contractorAddress: contractor.address,
+        });
+        venice = {
+          content: x402Result.content,
+          settlementTx: x402Result.settlementTx as `0x${string}`,
+        };
+      }
 
       if (!venice.settlementTx) {
-        throw new Error("x402 settlement tx missing — payment may not have settled on-chain");
+        throw new Error(
+          "Settlement tx missing — payment may not have settled on-chain",
+        );
       }
 
       setVeniceOutput(venice.content);
       setVeniceActive(false);
       pushLog(
-        `x402 settled · ${venice.settlementTx.slice(0, 10)}…`,
+        `${isRelayerMode() ? "Relayer" : "x402"} settled · ${venice.settlementTx.slice(0, 10)}…`,
         "default",
-        `${explorerTxUrl}/${venice.settlementTx}`,
+        `${settlementExplorer}/${venice.settlementTx}`,
       );
 
       step = "feedback";
@@ -544,5 +586,6 @@ export function useGuildApp() {
     registryDeployed: Boolean(
       registry?.identityDeployed && registry?.reputationDeployed,
     ),
+    settlementMode: getRelayerMode(),
   };
 }
