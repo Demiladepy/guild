@@ -63,7 +63,7 @@ export function GuildDashboard() {
           />
           <AuthorityLadder
             hiredName={app.hiredAgent?.name ?? null}
-            shake={app.overspendShake}
+            shake={false}
           />
           <VeniceCard output={app.veniceOutput} active={app.veniceActive} />
           <JobLog lines={app.logLines} />

@@ -1,4 +1,4 @@
-import { addresses, chain, chainId } from "@guild/core/config";
+import { addresses, chain, chainId, publicClient } from "@guild/core/config";
 import {
   agentRegistryUri,
   readReputationSummary,
@@ -22,6 +22,8 @@ import {
   type StoredAgentIdentity,
 } from "@/lib/agent-storage";
 import { getOrCreateContractorAccount } from "@/lib/session-account";
+import { createContractorWalletClient } from "@/lib/contractor-wallet";
+import { formatJobError } from "@/lib/job-errors";
 
 export type RegisteredGuildAgent = StoredAgentIdentity & {
   name: string;
@@ -94,6 +96,7 @@ async function seedSpecialistReputation(params: {
     endpoint: "/api/x402/venice-inference",
     feedbackURI,
     feedbackPayload,
+    client: createContractorWalletClient(),
   });
 }
 
@@ -114,16 +117,30 @@ export async function registerGuildAgents(): Promise<{
     const summaryKey = `${contractorAccount.address}:${registered.agentId}:seeded`;
     const alreadySeeded =
       typeof window !== "undefined" &&
-      sessionStorage.getItem(summaryKey) === "1";
+      (localStorage.getItem(summaryKey) === "1" ||
+        (() => {
+          const legacy = sessionStorage.getItem(summaryKey);
+          if (legacy === "1") {
+            localStorage.setItem(summaryKey, "1");
+            sessionStorage.removeItem(summaryKey);
+            return true;
+          }
+          return false;
+        })());
 
     if (!alreadySeeded) {
-      const hash = await seedSpecialistReputation({
-        contractor: contractorAccount,
-        specialistRole: role,
-        specialistAgentId: BigInt(registered.agentId),
-      });
-      seedTxHashes.push(hash);
-      sessionStorage.setItem(summaryKey, "1");
+      try {
+        const hash = await seedSpecialistReputation({
+          contractor: contractorAccount,
+          specialistRole: role,
+          specialistAgentId: BigInt(registered.agentId),
+        });
+        await publicClient.waitForTransactionReceipt({ hash });
+        seedTxHashes.push(hash);
+        localStorage.setItem(summaryKey, "1");
+      } catch (err) {
+        throw new Error(formatJobError(err, `seed-${role}`));
+      }
     }
   }
 

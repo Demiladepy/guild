@@ -1,7 +1,6 @@
 import { addresses, chain } from "@guild/core/config";
 import type { GetGrantedExecutionPermissionsResult } from "@metamask/smart-accounts-kit/actions";
 import {
-  erc7710WalletActions,
   type RedelegatePermissionContextReturnType,
 } from "@metamask/smart-accounts-kit/actions";
 import {
@@ -10,7 +9,8 @@ import {
 } from "@metamask/smart-accounts-kit";
 import { createCaveatBuilder } from "@metamask/smart-accounts-kit/utils";
 import type { Account } from "viem";
-import { createWalletClient, http, parseUnits } from "viem";
+import { parseUnits } from "viem";
+import { createContractorWalletClient } from "@/lib/contractor-wallet";
 
 type GrantedPermission = GetGrantedExecutionPermissionsResult[number];
 
@@ -39,12 +39,7 @@ export async function redelegateToSpecialist(params: {
   parentPermission: GrantedPermission;
 }): Promise<RedelegatePermissionContextReturnType> {
   const environment = getSmartAccountsEnvironment(chain.id);
-
-  const contractorClient = createWalletClient({
-    account: params.contractorAccount,
-    chain,
-    transport: http(),
-  }).extend(erc7710WalletActions());
+  const contractorClient = createContractorWalletClient();
 
   return contractorClient.redelegatePermissionContext({
     account: params.contractorAccount,

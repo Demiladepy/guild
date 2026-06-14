@@ -1,4 +1,4 @@
-import { addresses, chain, chainId } from "@guild/core/config";
+import { addresses, chain, chainId, publicClient } from "@guild/core/config";
 import {
   agentRegistryUri,
   readReputationSummary,
@@ -12,6 +12,8 @@ import {
   VENICE_CAPABILITY,
 } from "@/lib/agents";
 import type { SpecialistCandidate } from "@/lib/agent-hiring";
+import { createContractorWalletClient } from "@/lib/contractor-wallet";
+import { formatJobError } from "@/lib/job-errors";
 
 function getAppOrigin(): string {
   const base =
@@ -73,7 +75,7 @@ export async function writeSettlementFeedback(params: {
     runNumber: params.runNumber,
   });
 
-  await fetch("/api/agents/feedback", {
+  const storeRes = await fetch("/api/agents/feedback", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -82,18 +84,37 @@ export async function writeSettlementFeedback(params: {
     }),
   });
 
-  const feedbackTxHash = await writeAgentFeedback({
-    account: params.contractor,
-    chain,
-    agentId: BigInt(params.hired.agentId),
-    value: feedbackValue,
-    valueDecimals: 2,
-    tag1: REPUTATION_TAG1,
-    tag2: VENICE_CAPABILITY,
-    endpoint: "/api/x402/venice-inference",
-    feedbackURI,
-    feedbackPayload,
-  });
+  if (!storeRes.ok) {
+    const body = await storeRes.text();
+    throw new Error(
+      formatJobError(
+        new Error(`feedback file store failed (${storeRes.status}): ${body}`),
+        "feedback-store",
+      ),
+    );
+  }
+
+  let feedbackTxHash: Hash;
+  try {
+    const wallet = createContractorWalletClient();
+    feedbackTxHash = await writeAgentFeedback({
+      account: params.contractor,
+      chain,
+      agentId: BigInt(params.hired.agentId),
+      value: feedbackValue,
+      valueDecimals: 2,
+      tag1: REPUTATION_TAG1,
+      tag2: VENICE_CAPABILITY,
+      endpoint: "/api/x402/venice-inference",
+      feedbackURI,
+      feedbackPayload,
+      client: wallet,
+    });
+  } catch (err) {
+    throw new Error(formatJobError(err, "feedback-tx"));
+  }
+
+  await publicClient.waitForTransactionReceipt({ hash: feedbackTxHash });
 
   const scoreAfter = (
     await readReputationSummary({

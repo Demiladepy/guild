@@ -3,13 +3,13 @@ import { x402Erc7710Client } from "@metamask/x402";
 import { x402Client, x402HTTPClient } from "@x402/core/client";
 import { wrapFetchWithPayment } from "@x402/fetch";
 import type { Account, Hex } from "viem";
+import { formatJobError } from "@/lib/job-errors";
 
 export function buildSpecialistX402Client(params: {
   specialistAccount: Account;
   redelegatedContext: Hex;
   contractorAddress: `0x${string}`;
 }) {
-  // createx402DelegationProvider from @metamask/smart-accounts-kit/experimental
   const delegationProvider = createx402DelegationProvider({
     account: params.specialistAccount,
     parentPermissionContext: params.redelegatedContext,
@@ -32,19 +32,40 @@ export async function runVeniceViaX402(params: {
 }): Promise<{ content: string; settlementTx: `0x${string}` | null }> {
   const { fetchWithPayment } = buildSpecialistX402Client(params);
 
-  const response = await fetchWithPayment("/api/x402/venice-inference", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-  });
+  let response: Response;
+  try {
+    response = await fetchWithPayment("/api/x402/venice-inference", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (err) {
+    throw new Error(formatJobError(err, "x402-fetch"));
+  }
 
-  const data = (await response.json()) as {
+  const bodyText = await response.text();
+  let data: {
     content?: string;
     settlementTx?: string;
     error?: string;
-  };
+  } = {};
+
+  try {
+    data = bodyText ? (JSON.parse(bodyText) as typeof data) : {};
+  } catch {
+    data = { error: bodyText.slice(0, 200) };
+  }
 
   if (!response.ok || !data.content) {
-    throw new Error(data.error ?? `Venice x402 failed (${response.status})`);
+    const statusHint =
+      response.status === 402
+        ? "402 payment required — delegation may lack USDC or pay→retry failed"
+        : `HTTP ${response.status}`;
+    throw new Error(
+      formatJobError(
+        new Error(data.error ?? `Venice x402 failed (${statusHint})`),
+        "x402-inference",
+      ),
+    );
   }
 
   return {

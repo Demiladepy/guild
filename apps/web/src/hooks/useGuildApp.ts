@@ -12,7 +12,6 @@ import {
   custom,
   encodeFunctionData,
   erc20Abi,
-  http,
   parseUnits,
 } from "viem";
 import {
@@ -23,7 +22,6 @@ import type {
   GetGrantedExecutionPermissionsResult,
   RedelegatePermissionContextReturnType,
 } from "@metamask/smart-accounts-kit/actions";
-import { decodeRevertReason } from "@metamask/smart-accounts-kit/utils";
 import { registerGuildAgents, type RegisteredGuildAgent } from "@/lib/agent-registry";
 import { writeSettlementFeedback } from "@/lib/agent-feedback";
 import {
@@ -38,8 +36,9 @@ import {
   type SpecialistRole,
 } from "@/lib/agents";
 import { getOrCreateContractorAccount } from "@/lib/session-account";
+import { getGuildHttpTransport } from "@/lib/chain-transport";
+import { formatJobError } from "@/lib/job-errors";
 import {
-  BLOCKED_ATTESTATION,
   buildSpecialistX402Client,
   runVeniceViaX402,
 } from "@/lib/specialist-client";
@@ -120,7 +119,6 @@ export function useGuildApp() {
   const [veniceOutput, setVeniceOutput] = useState<string | null>(null);
   const [veniceActive, setVeniceActive] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
-  const [overspendShake, setOverspendShake] = useState(false);
   const [scoreDeltaFlash, setScoreDeltaFlash] = useState<ScoreDeltaFlash>(null);
   const [animatingScores, setAnimatingScores] = useState<Record<string, number>>({});
   const [busy, setBusy] = useState<string | null>(null);
@@ -290,7 +288,7 @@ export function useGuildApp() {
       }
       showToast(`Registered ${specialists.length} ERC-8004 agents on-chain`);
     } catch (err) {
-      showToast(err instanceof Error ? err.message : "Registration failed");
+      showToast(formatJobError(err, "register"));
     } finally {
       setBusy(null);
     }
@@ -308,6 +306,8 @@ export function useGuildApp() {
     setVeniceOutput(null);
     setScoreDeltaFlash(null);
 
+    let step = "reputation-read";
+
     try {
       const contractor = getOrCreateContractorAccount();
 
@@ -318,21 +318,38 @@ export function useGuildApp() {
       });
 
       if (candidates.length === 0) {
-        throw new Error("No registered specialists with on-chain reputation");
+        throw new Error(
+          "No registered specialists with on-chain reputation — register agents and wait for seed txs",
+        );
       }
 
+      pushLog(
+        `On-chain scores: ${candidates.map((c) => `${c.name} ${c.score.toFixed(2)}`).join(" · ")}`,
+        "reputation",
+      );
+
+      const priorRole = hiredSpecialist?.role ?? null;
       const eligibleNames = candidates.map((c) => c.name).join(", ");
       pushLog(
         `Eligible · ${VENICE_CAPABILITY}: ${eligibleNames}`,
         "default",
       );
 
+      step = "hire";
       const hireResult = await hireTopSpecialist({
         contractorAccount: contractor,
         contractorAddress,
         parentPermission: permission,
         requiredCapability: VENICE_CAPABILITY,
       });
+
+      if (priorRole && hireResult.hired.role !== priorRole) {
+        const priorName = GUILD_AGENT_DEFINITIONS[priorRole].name;
+        pushLog(
+          `On-chain re-hire: ${priorName} → ${hireResult.hired.name} (rank changed)`,
+          "reputation",
+        );
+      }
 
       setHiredSpecialist(hireResult.hired);
       setHiredId(hireResult.hired.agentId);
@@ -347,6 +364,7 @@ export function useGuildApp() {
         "authority",
       );
 
+      step = "x402";
       setVeniceActive(true);
       pushLog("Venice inference via x402 delegated payment…", "default");
 
@@ -358,7 +376,7 @@ export function useGuildApp() {
       });
 
       if (!venice.settlementTx) {
-        throw new Error("x402 settlement tx missing from Venice response");
+        throw new Error("x402 settlement tx missing — payment may not have settled on-chain");
       }
 
       setVeniceOutput(venice.content);
@@ -369,6 +387,7 @@ export function useGuildApp() {
         `${explorerTxUrl}/${venice.settlementTx}`,
       );
 
+      step = "feedback";
       const runNumber = runCount + 1;
       const feedback = await writeSettlementFeedback({
         contractor,
@@ -386,16 +405,22 @@ export function useGuildApp() {
       );
 
       pushLog(
-        `Feedback ${feedback.feedbackScore} on-chain · ${hireResult.hired.name} now ${feedback.scoreAfter.toFixed(2)}`,
+        `Feedback ${feedback.feedbackScore} on-chain · ${hireResult.hired.name} ${feedback.scoreBefore.toFixed(2)} → ${feedback.scoreAfter.toFixed(2)}`,
         "reputation",
         `${explorerTxUrl}/${feedback.feedbackTxHash}`,
       );
 
+      step = "reputation-refresh";
       const updatedCandidates = await listSpecialistCandidates({
         contractorAddress,
         requiredCapability: VENICE_CAPABILITY,
       });
       setLiveAgents(mapLiveAgents(registeredAgents, updatedCandidates));
+
+      pushLog(
+        `Updated standings: ${updatedCandidates.map((c) => `${c.name} ${c.score.toFixed(2)}`).join(" · ")}`,
+        "reputation",
+      );
 
       const refreshed = updatedCandidates.find(
         (c) => c.role === hireResult.hired.role,
@@ -409,7 +434,7 @@ export function useGuildApp() {
       window.setTimeout(() => setScoreDeltaFlash(null), 2200);
     } catch (err) {
       setVeniceActive(false);
-      const message = err instanceof Error ? err.message : "Job failed";
+      const message = formatJobError(err, step);
       pushLog(message, "revert");
       showToast(message);
     } finally {
@@ -419,6 +444,7 @@ export function useGuildApp() {
     animateScore,
     busy,
     contractorAddress,
+    hiredSpecialist,
     isRunning,
     permission,
     pushLog,
@@ -431,7 +457,7 @@ export function useGuildApp() {
     if (!hiredSpecialist || !redelegation || isRunning || busy !== null) return;
 
     pushLog(
-      `${hiredSpecialist.name} attempts 3.00 USDC spend against 2.00 USDC cap…`,
+      `${hiredSpecialist.name} attempts 3.00 USDC transfer against 2.00 USDC cap…`,
       "default",
     );
 
@@ -456,7 +482,7 @@ export function useGuildApp() {
       const specialistWalletClient = createWalletClient({
         account: specialist,
         chain,
-        transport: http(),
+        transport: getGuildHttpTransport(),
       }).extend(erc7710WalletActions());
 
       const transferCalldata = encodeFunctionData({
@@ -474,17 +500,12 @@ export function useGuildApp() {
         data: transferCalldata,
       });
 
-      pushLog("Expected over-cap redemption to revert, but it succeeded.", "revert");
-    } catch (err) {
-      const decoded = decodeRevertReason(err);
-      setOverspendShake(true);
-      window.setTimeout(() => setOverspendShake(false), 500);
       pushLog(
-        decoded
-          ? `Revert: ${decoded.errorName} — ${decoded.message}`
-          : BLOCKED_ATTESTATION,
+        "[overspend] Expected over-cap redemption to revert, but transfer succeeded.",
         "revert",
       );
+    } catch (err) {
+      pushLog(formatJobError(err, "overspend"), "revert");
     }
   }, [busy, hiredSpecialist, isRunning, pushLog, redelegation]);
 
@@ -497,7 +518,6 @@ export function useGuildApp() {
     veniceOutput,
     veniceActive,
     isRunning,
-    overspendShake,
     scoreDeltaFlash,
     eligibleCount,
     displayScore,
