@@ -1,98 +1,229 @@
 # Guild
 
-MetaMask Smart Accounts Kit hackathon monorepo — ERC-7715 permissions, attenuated delegation chains, ERC-8004 agent identities, reputation-weighted hiring, x402 Venice payments, and 1Shot stablecoin gas relay.
+**Grant one budget. Hire by on-chain reputation. Work inside attenuated permissions. Reputation updates from real results.**
 
-## Quick start
+Guild is a hackathon prototype for the MetaMask Smart Accounts Kit × 1Shot × Venice Dev Cook Off. An owner wallet grants a weekly USDC budget to a Contractor session account; the Contractor reads ERC-8004 reputation, hires the top eligible specialist, redelegates a capped sub-budget, pays for Venice private inference, and writes settlement feedback back to the registry. A second run re-reads on-chain scores and can hire a different specialist.
 
-```powershell
+---
+
+## The problem
+
+Giving autonomous agents money is risky without scoped authority: raw private keys, blanket token approvals, and no way to compare agents on past performance. Guild uses **ERC-7715** so the owner grants a bounded periodic budget, **ERC-7710** so authority only shrinks down the delegation chain (2 USDC cap, USDC-only, Venice-scoped), and **ERC-8004** so hiring is driven by on-chain reputation that moves after each job. Payment for inference goes through **x402** (default) so settlement is explicit and linkable to feedback.
+
+---
+
+## What it does (built flow)
+
+The homepage (`apps/web/src/app/page.tsx` → `GuildDashboard` → `useGuildApp.ts`) runs this path end-to-end on **Base Sepolia** by default:
+
+| Step | What happens |
+|------|----------------|
+| **Connect** | Owner wallet on Base Sepolia; Contractor session EOA created in browser localStorage |
+| **Grant** | `requestExecutionPermissions` — ERC-7715 periodic USDC budget (10 USDC/week) to Contractor |
+| **Register** | Three specialist EOAs mint ERC-8004 identities + seeded uneven reputation via `giveFeedback` |
+| **Post job & hire** | `getSummary` → rank by score → `redelegatePermissionContext` (2 USDC cap, Venice-only caveats) |
+| **Settle** | Specialist pays via **x402** ERC-7710 delegation → `/api/x402/venice-inference` → Venice `/chat/completions` |
+| **Feedback** | Contractor writes ERC-8004 `giveFeedback` (run 1 score 40 pulls leader below runner-up) |
+| **Run again** | Fresh `getSummary` + re-hire; **Researcher → Analyst** flip when on-chain rank changes |
+| **Attempt overspend** | Real delegated USDC transfer above cap; on-chain revert surfaced in job log |
+
+No mock sim runs on the default path. `useGuildSim.ts` and `guild-spike.tsx` remain in the repo as unused reference code.
+
+---
+
+## Tracks & qualification
+
+| Track | How Guild qualifies |
+|-------|---------------------|
+| **MetaMask Smart Accounts Kit** (qualification gate) | **ERC-7715** grant in `useGuildApp.ts` (`grantBudget`). **ERC-7710** attenuated redelegation in `delegation-chain.ts` + overspend proof via `sendTransactionWithDelegation`. Kit deps: `@metamask/smart-accounts-kit` 1.6.0, `@metamask/x402` 0.2.0. |
+| **Best A2A coordination** | Contractor → Specialist redelegation with spending cap and `allowedTargets` / `allowedMethods` caveats; authority cannot expand down-chain. |
+| **Best use of Venice** | Inference via Venice API; x402-gated proxy at `apps/web/src/app/api/x402/venice-inference/route.ts`. |
+| **1Shot relayer** | **Optional, flag-gated.** `submitSpecialistVeniceRelay()` is called when `RELAYER_MODE=relayer` (requires `CHAIN_MODE=mainnet`, public `NEXT_PUBLIC_APP_URL`, mainnet funding). **Default settlement is x402 on Base Sepolia**, not the relayer. |
+
+**Kit in the main user flow:** Connect → **Grant (7715)** → Register → **Hire + redelegate (7710)** → x402 pay → feedback. Every job run exercises grant context and a fresh redelegation.
+
+---
+
+## Architecture
+
+```
+Owner wallet (MetaMask Flask)
+    │ ERC-7715 periodic USDC grant
+    ▼
+Contractor session EOA (localStorage key)
+    │ read ReputationRegistry.getSummary
+    │ hire top specialist
+    │ ERC-7710 redelegate (2 USDC, USDC transfer only)
+    ▼
+Specialist EOA (Researcher / Analyst / Writer)
+    │ x402 wrapFetchWithPayment (default)
+    │   OR 1Shot send7710 + webhook (RELAYER_MODE=relayer, mainnet)
+    ▼
+/api/x402/venice-inference  →  Venice API  →  settlement tx
+    │
+    ▼
+Contractor giveFeedback  →  standings re-rank  →  next hire
+```
+
+| Component | File(s) | Role |
+|-----------|---------|------|
+| Chain config | `packages/core/src/config.ts`, `chain-mode.ts` | Base Sepolia / mainnet, USDC, registry addresses, relayer URL |
+| ERC-8004 bindings | `packages/core/src/identity.ts` | `register`, `getSummary`, `giveFeedback` |
+| Agent roster | `apps/web/src/lib/agents.ts` | Researcher / Analyst / Writer EOAs + seed scores |
+| Registration | `apps/web/src/lib/agent-registry.ts` | Mint identities, seed reputation |
+| Hiring | `apps/web/src/lib/agent-hiring.ts` | `listSpecialistCandidates`, `hireTopSpecialist` |
+| Redelegation | `apps/web/src/lib/delegation-chain.ts` | 2 USDC cap, Venice-only caveats |
+| x402 client | `apps/web/src/lib/specialist-client.ts` | `runVeniceViaX402` via `@x402/fetch` |
+| x402 server | `apps/web/src/lib/x402-server.ts`, `api/x402/venice-inference/route.ts` | Payment gate + Venice proxy |
+| Feedback | `apps/web/src/lib/agent-feedback.ts` | Post-settlement `giveFeedback` |
+| UI orchestration | `apps/web/src/hooks/useGuildApp.ts` | Connect → grant → register → job loop |
+| Registry check | `apps/web/src/lib/verify-registry.ts` | `getCode` on singleton addresses |
+| 1Shot relayer (optional) | `apps/web/src/lib/specialist-relayer.ts`, `relayer-settlement.ts` | `estimate7710` → `send7710`, EIP-7702 upgrade |
+| Relayer webhooks | `api/relayer-webhook`, `api/relayer-events` | Push status + SSE to job log |
+| Pre-flight | `scripts/healthcheck.ts` | RPC, registries, Venice, x402, wallet balances |
+
+**Monorepo:** `packages/core` (viem + Kit bindings), `apps/web` (Next.js 14 UI + API routes).
+
+---
+
+## On-chain
+
+Guild does **not** deploy a custom market contract. It calls the **public ERC-8004 singleton registries** already on Base Sepolia (bytecode verified via `verify-registry.ts`):
+
+| Registry | Base Sepolia address |
+|----------|-------------------|
+| IdentityRegistry | `0x8004A818BFB912233c491871b3d84c89A494BD9e` |
+| ReputationRegistry | `0x8004B663056A597Dffe9eCcC1965A193B7388713` |
+
+USDC (Circle test token): `0x036CbD53842c5426634e7929541eC2318f3dCF7e`.
+
+Agents are ERC-8004 NFT identities owned by fixed specialist EOAs. Reputation is per-client (`getSummary` scoped to Contractor address + `guild` / `venice-inference` tags). Using the standard registries is intentional — Guild is a client of ERC-8004, not a new registry deploy.
+
+---
+
+## Run it locally
+
+### Prerequisites
+
+- **Node.js** ≥ 18, **pnpm**
+- **MetaMask Flask 13.5+** with Advanced Permissions (ERC-7715). Other wallets (e.g. Rabby) may connect but often cannot complete the grant step.
+- Wallet on **Base Sepolia** with test **USDC** (Circle faucet) and a small amount of **ETH**
+- **Venice API key** with account credits at [venice.ai/settings/api](https://venice.ai/settings/api)
+
+### Environment
+
+Copy `.env.example` → `.env` at repo root:
+
+| Variable | Purpose |
+|----------|---------|
+| `CHAIN_MODE` / `NEXT_PUBLIC_CHAIN_MODE` | `testnet` (Base Sepolia, default) or `mainnet` |
+| `BASE_SEPOLIA_RPC_URL` | RPC for Sepolia reads/writes |
+| `VENICE_API_KEY` / `VENICE_MODEL` | Server-side Venice inference |
+| `X402_PAYTO_ADDRESS` / `NEXT_PUBLIC_X402_PAYTO_ADDRESS` | Wallet receiving x402 inference payment (~$0.01) |
+| `NEXT_PUBLIC_APP_URL` | App origin; must be a **public tunnel URL** if using relayer webhooks |
+| `RELAYER_MODE` / `NEXT_PUBLIC_RELAYER_MODE` | `x402` (default) or `relayer` (1Shot mainnet path) |
+| `BUNDLER_RPC_URL` | Required by `pnpm health` only; not used in the default job loop |
+| `GUILD_CONTRACTOR_ADDRESS` | Optional; copy from UI after Connect for `pnpm health` wallet check |
+
+### Funding (beyond the owner wallet)
+
+The Contractor session EOA and three specialist EOAs (derived from `agents.ts`) need **Base Sepolia ETH** (registry + feedback gas) and **USDC** (x402 delegated spend). `pnpm health` prints balances and FAILs on zero ETH or USDC.
+
+### Commands
+
+```bash
 pnpm install
-Copy-Item .env.example .env
-# Fill VENICE_API_KEY, VENICE_MODEL, X402_PAYTO_ADDRESS, NEXT_PUBLIC_* mirrors
-pnpm health
-pnpm --filter web dev
+cp .env.example .env   # fill Venice key, x402 pay-to, etc.
+pnpm health            # pre-flight; exits non-zero on any FAIL
+pnpm dev               # http://localhost:3000
 ```
 
-## Monorepo layout
+Restart the dev server after changing `.env` (Next.js reads server vars at boot).
 
-| Path | Purpose |
-|------|---------|
-| `packages/core` | Chain config, Venice, ERC-8004 viem bindings, 1Shot relayer |
-| `apps/web` | Spike UI — Connect → Grant → Register → Hire → Run Job |
-| `scripts/healthcheck.ts` | Base Sepolia connectivity + env validation |
+### User flow
 
-## ERC-8004 agent economy (Prompt 4)
+1. **Connect** — MetaMask Flask on Base Sepolia  
+2. **Grant budget** — ERC-7715 USDC permission to Contractor  
+3. **Register agents** — mint 3 ERC-8004 IDs + seed reputation txs  
+4. **Post job & hire** — hire, x402 Venice payment, on-chain feedback  
+5. **Run again** — re-read reputation; watch Analyst overtake Researcher after run-1 feedback  
+6. **Attempt overspend** — real revert when specialist exceeds 2 USDC cap  
 
-Registry addresses verified against [erc-8004/erc-8004-contracts](https://github.com/erc-8004/erc-8004-contracts) README:
+Job log lines include Base Sepolia explorer links for settlement and feedback txs.
 
-| `CHAIN_MODE` | IdentityRegistry | ReputationRegistry |
-|--------------|------------------|-------------------|
-| `testnet` | `0x8004A818BFB912233c491871b3d84c89A494BD9e` | `0x8004B663056A597Dffe9eCcC1965A193B7388713` |
-| `mainnet` | `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432` | `0x8004BAa17C55a88189AE136b182e5fdA19dE9b63` |
+### Optional: 1Shot relayer mode (mainnet prize path)
 
-Flow:
-
-1. **Grant** — User ERC-7715 consent gate → Contractor budget (Prompt 1)
-2. **Register** — Researcher (84), Analyst (77), Writer (71) as ERC-8004 identities with uneven seed reputation
-3. **Hire** — Contractor reads `getSummary`, ranks by score, redelegates attenuated budget to winner
-4. **Work** — Hired specialist pays via x402 ERC-7710 delegation → Venice `/chat/completions`
-5. **Write-back** — Contractor posts settlement feedback (run 1 scores 40 — pulls leader below runner-up)
-6. **Run again** — Re-hire by updated scores; **Analyst overtakes Researcher**; UI animates re-rank
-
-Bindings: `packages/core/src/identity.ts` (ABIs trimmed from the contracts repo `abis/` folder).
-
-**Funding:** Contractor, Researcher, and Writer EOAs each need a small amount of Base Sepolia ETH for `register` and reputation txs. Specialists also need USDC for 1Shot relay fees.
-
-## 1Shot relayer integration
-
-Specialist redemptions route through the [1Shot public relayer](https://www.1shotapi.com/solutions/gas-relayer) so agents pay gas in **USDC**, not ETH.
-
-Flow (see `.agents/skills/public-relayer/SKILL.md`):
-
-1. `relayer_getCapabilities` — confirm chain + stablecoin support
-2. Specialist initialized as `Implementation.Stateless7702` with optional EIP-7702 `authorizationList` on first use
-3. `relayer_estimate7710Transaction` → `relayer_send7710Transaction` with redelegated `permissionContext`, fee + work executions, and locked `context`
-4. Webhook at `/api/relayer-webhook` receives signed status pushes; UI listens via SSE `/api/relayer-events`
-5. `relayer_getStatus` is **fallback only** if webhooks are unreachable
-
-### Relayer endpoints (per installed 1Shot skill)
-
-| `CHAIN_MODE` | Chain | Relayer URL |
-|--------------|-------|-------------|
-| `testnet` (default) | Base Sepolia (84532) | `https://relayer.1shotapi.dev/relayers` |
-| `mainnet` | Base (8453) | `https://relayer.1shotapi.com/relayers` |
-
-> **Note:** This prompt listed `https://relayer.1shotapi.com/relayers` for all chains. The installed 1Shot skill specifies **`.dev`** for Base Sepolia and Sepolia testnets. Guild follows the skill; `packages/core/src/chain-mode.ts` documents the divergence.
-
-### Webhooks for local dev
-
-1Shot must POST to a **public** URL. Set `NEXT_PUBLIC_APP_URL` to your tunnel origin (e.g. ngrok) so `destinationUrl` resolves to `{APP_URL}/api/relayer-webhook`.
-
-## Testnet vs mainnet (1Shot prize qualification)
-
-The **1Shot hackathon prize** requires the final project to relay ERC-7710 transactions through the **mainnet** relayer using EIP-7702 upgrades.
-
-| Concern | Decision |
-|---------|----------|
-| Daily development | `CHAIN_MODE=testnet` — Base Sepolia, `.dev` relayer, x402.org facilitator |
-| Prize demo / qualification | `CHAIN_MODE=mainnet` — Base mainnet, `relayer.1shotapi.com`, real USDC |
-| Must mainnet be the only mode? | **No** — Guild keeps testnet as the default dev path. Switch `CHAIN_MODE` + RPC URLs + fund mainnet USDC for the prize recording. |
-| What changes on mainnet? | `packages/core/src/chain-mode.ts` selects chain, USDC address, relayer URL, and explorer links. Attenuation caveats and delegation tree logic are unchanged. |
-
-Guild does **not** require mainnet for local acceptance testing; it **does** support mainnet-pointable relayer config without breaking the Sepolia flow.
-
-## Environment variables
-
-See `.env.example` for the full list. Critical for Prompt 3:
-
-- `CHAIN_MODE` / `NEXT_PUBLIC_CHAIN_MODE`
-- `NEXT_PUBLIC_APP_URL` — webhook target
-- `NEXT_PUBLIC_X402_PAYTO_ADDRESS` — inference work-transfer recipient
-- `VENICE_API_KEY` / `VENICE_MODEL`
-
-## Scripts
-
-```powershell
-pnpm health          # RPC + env check
-pnpm --filter web dev
-pnpm -r typecheck
+```env
+RELAYER_MODE=relayer
+NEXT_PUBLIC_RELAYER_MODE=relayer
+CHAIN_MODE=mainnet
+NEXT_PUBLIC_CHAIN_MODE=mainnet
+NEXT_PUBLIC_APP_URL=https://your-tunnel.ngrok.app
+NEXT_PUBLIC_BASE_RPC_URL=https://mainnet.base.org
 ```
+
+Requires mainnet ETH/USDC on contractor + specialists and a public webhook URL. Settlement uses `relayer.1shotapi.com` + EIP-7702 upgrade; Venice text comes from `/api/venice` after webhook confirmation. **Sepolia demo should stay on `RELAYER_MODE=x402`.**
+
+---
+
+## Honest scope
+
+### What's real in this build
+
+- ERC-7715 budget grant and ERC-7710 attenuated redelegation (MetaMask Smart Accounts Kit)
+- ERC-8004 identity registration, `getSummary` hiring, and `giveFeedback` write-back against live Sepolia singletons
+- x402 ERC-7710 delegated payment to a gated Venice proxy (default settlement path)
+- Two consecutive job runs with on-chain re-rank (Researcher → Analyst after run-1 feedback score 40)
+- Real overspend revert via delegated USDC transfer above cap
+- Optional 1Shot mainnet relayer path behind `RELAYER_MODE=relayer` (webhook + SSE status in job log)
+
+### Out of scope by design
+
+- **Custom market / escrow contract** — hiring logic is off-chain orchestration + standard ERC-8004 reads/writes
+- **General LLM agent framework** — no Claude, LangChain, or autonomous planner; specialists are role-scoped EOAs; **Venice** is the inference layer
+- **1Shot on Sepolia demo path** — default x402 settlement; relayer is opt-in mainnet only
+- **Production auth, persistence, or multi-tenant registry** — browser localStorage for contractor key and agent IDs
+
+---
+
+## Demo
+
+**Video:** [Demo video](TODO)
+
+**Verify on-chain (Base Sepolia):**
+
+- Agent registration tx: [TODO — basescan link]
+- Reputation feedback tx (run 1): [TODO — basescan link]
+- x402 settlement tx: [TODO — basescan link]
+- Overspend revert tx: [TODO — basescan link]
+
+---
+
+## Tech stack
+
+| Layer | Choice |
+|-------|--------|
+| Smart accounts | MetaMask Smart Accounts Kit 1.6.0 — ERC-7715, ERC-7710, x402 experimental delegation |
+| Payments | `@metamask/x402`, `@x402/core`, `@x402/fetch` — x402.org facilitator on Sepolia |
+| Identity & reputation | ERC-8004 singleton registries via viem (`packages/core/src/identity.ts`) |
+| Inference | Venice API (`venice-uncensored` or configured model) |
+| Relayer (optional) | 1Shot `relayer.1shotapi.com` — `packages/core/src/relayer.ts` |
+| Frontend | Next.js 14, React 18, Tailwind |
+| Chain | Base Sepolia (84532) default; Base mainnet for relayer mode |
+| Tooling | TypeScript, viem 2.x, pnpm monorepo, `tsx` healthcheck |
+
+### Scripts
+
+| Command | Description |
+|---------|-------------|
+| `pnpm install` | Install workspace dependencies |
+| `pnpm health` | Pre-flight: RPC, ERC-8004 bytecode, Venice call, x402 402 response, wallet balances |
+| `pnpm dev` | Start Next.js at `http://localhost:3000` |
+| `pnpm build` | Production build (all packages) |
+| `pnpm typecheck` | TypeScript check (all packages) |
+
+---
+
+## License
+
+MIT — see repository license file if present.
