@@ -18,7 +18,13 @@ export type LogLine = {
   text: string;
   variant: LogVariant;
   timestamp: string;
+  href?: string;
 };
+
+export type ScoreDeltaFlash = {
+  agentId: string;
+  delta: number;
+} | null;
 
 export type ValidationOutcome = "partial" | "verified" | "random";
 

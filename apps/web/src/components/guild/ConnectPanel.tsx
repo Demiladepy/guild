@@ -10,7 +10,6 @@ type ConnectPanelProps = {
   onConnect: () => void;
   onGrant: () => void;
   onRegister: () => void;
-  onUseDemo: () => void;
   registryDeployed: boolean;
 };
 
@@ -24,15 +23,14 @@ export function ConnectPanel({
   onConnect,
   onGrant,
   onRegister,
-  onUseDemo,
   registryDeployed,
 }: ConnectPanelProps) {
   return (
     <section className="guild-card">
       <h2>Agent integration</h2>
       <p className="guild-muted" style={{ marginTop: "0.25rem", fontSize: "0.875rem" }}>
-        Connect MetaMask to register real ERC-8004 agents, or preview the reputation
-        loop in demo mode.
+        Connect MetaMask, grant ERC-7715 budget, and register ERC-8004 agents to
+        run the live reputation loop.
       </p>
 
       <div className="guild-btn-row">
@@ -71,13 +69,6 @@ export function ConnectPanel({
         >
           Register agents
         </button>
-        <button
-          type="button"
-          onClick={onUseDemo}
-          className="guild-btn guild-btn--ghost"
-        >
-          Preview demo
-        </button>
       </div>
 
       {(walletAddress || contractorAddress) && (
@@ -94,7 +85,7 @@ export function ConnectPanel({
               <dd>{contractorAddress}</dd>
             </div>
           )}
-          {mode === "live" && step === "operate" && (
+          {step === "operate" && (
             <p style={{ margin: "0.5rem 0 0", color: "var(--guild-success)" }}>
               Ready to hire on-chain specialists.
             </p>

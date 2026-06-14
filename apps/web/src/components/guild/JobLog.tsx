@@ -27,7 +27,22 @@ export function JobLog({ lines }: JobLogProps) {
                 <span className="guild-faint" style={{ marginRight: "0.5rem" }}>
                   {line.timestamp}
                 </span>
-                {line.text}
+                {line.href ? (
+                  <>
+                    {line.text}{" "}
+                    <a
+                      href={line.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="guild-link"
+                      style={{ fontSize: "inherit" }}
+                    >
+                      explorer
+                    </a>
+                  </>
+                ) : (
+                  line.text
+                )}
               </li>
             ))}
           </ul>
