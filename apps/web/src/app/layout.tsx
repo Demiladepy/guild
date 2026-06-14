@@ -1,9 +1,16 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Guild",
-  description: "MetaMask Smart Accounts Kit hackathon project on Base Sepolia",
+  description: "Autonomous agent labor market — reputation-weighted hiring",
 };
 
 export default function RootLayout({
@@ -12,10 +19,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className="min-h-screen bg-slate-950 text-slate-100 antialiased">
-        {children}
-      </body>
+    <html lang="en" className={inter.variable}>
+      <body className="min-h-screen bg-guild-page font-sans">{children}</body>
     </html>
   );
 }

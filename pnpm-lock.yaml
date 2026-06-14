@@ -23,6 +23,12 @@ importers:
       '@guild/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@metamask/design-system-tailwind-preset':
+        specifier: ^0.9.0
+        version: 0.9.0(@metamask/design-tokens@8.5.0)(tailwindcss@3.4.19(tsx@4.22.4))
+      '@metamask/design-tokens':
+        specifier: ^8.5.0
+        version: 8.5.0
       '@metamask/smart-accounts-kit':
         specifier: 1.6.0
         version: 1.6.0(typescript@5.9.3)(viem@2.52.2(typescript@5.9.3)(zod@3.25.76))(zod@3.25.76)
@@ -314,6 +320,17 @@ packages:
   '@metamask/delegation-deployments@1.4.0':
     resolution: {integrity: sha512-QuO4Fiz3GsP7nwcUpXFEVTxmRGBTkriYeZ7DBLxUAqbUQx7Kg630eR1SgvTn/eBMkmXB2tZJW9am/iGuAcySlw==}
     engines: {node: ^18.18 || >=20}
+
+  '@metamask/design-system-tailwind-preset@0.9.0':
+    resolution: {integrity: sha512-XPSd09tGt+0EWm59gHxvJh7eZNzvPYkGUMoVdN6zCano+tF4m2UegIq/l4uGnLVeMn5dVsFKM/to8DDwh2e2cg==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@metamask/design-tokens': ^8.0.0
+      tailwindcss: ^3.0.0
+
+  '@metamask/design-tokens@8.5.0':
+    resolution: {integrity: sha512-Yv/YAnzuQqmzdufyINbwquRSymIYEfad9NZNjgu05xpV3/PUP8l2fH9SqDZjOKbBAkmbtLFh8KHb3Lbcrp9m+Q==}
+    engines: {node: '>=20'}
 
   '@metamask/smart-accounts-kit@1.6.0':
     resolution: {integrity: sha512-RBGoZvgt/Z+PA7D2NCXHv99DHmsU92LGITlej6D1rUifWaC7Lf068OOCU4aFL4zoWWRWA7sYSg64nUGXq8EsMA==}
@@ -1146,6 +1163,13 @@ snapshots:
       - supports-color
 
   '@metamask/delegation-deployments@1.4.0': {}
+
+  '@metamask/design-system-tailwind-preset@0.9.0(@metamask/design-tokens@8.5.0)(tailwindcss@3.4.19(tsx@4.22.4))':
+    dependencies:
+      '@metamask/design-tokens': 8.5.0
+      tailwindcss: 3.4.19(tsx@4.22.4)
+
+  '@metamask/design-tokens@8.5.0': {}
 
   '@metamask/smart-accounts-kit@1.6.0(typescript@5.9.3)(viem@2.52.2(typescript@5.9.3)(zod@3.25.76))(zod@3.25.76)':
     dependencies:

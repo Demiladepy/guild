@@ -1,5 +1,5 @@
-import { GuildSpike } from "@/components/guild-spike";
+import { GuildDashboard } from "@/components/guild/GuildDashboard";
 
 export default function HomePage() {
-  return <GuildSpike />;
+  return <GuildDashboard />;
 }
