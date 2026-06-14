@@ -1,0 +1,662 @@
+/* Guild UI — plain CSS so layout survives when Tailwind fails to load */
+
+:root {
+  --guild-page: #ffffff;
+  --guild-panel: #f2f4f6;
+  --guild-card: #ffffff;
+  --guild-text: #24272a;
+  --guild-muted: #6a737d;
+  --guild-faint: #9fa6ae;
+  --guild-border: #d6d9dc;
+  --guild-primary: #037dd6;
+  --guild-primary-hover: #0260a4;
+  --guild-accent: #f6851b;
+  --guild-accent-tint: rgba(246, 133, 27, 0.08);
+  --guild-danger: #d73847;
+  --guild-danger-tint: rgba(215, 56, 71, 0.07);
+  --guild-success: #1c8234;
+  --guild-radius-card: 16px;
+  --guild-radius-inner: 10px;
+  --guild-radius-pill: 999px;
+  --guild-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 6px 20px rgba(0, 0, 0, 0.06);
+  --guild-font: var(--font-inter, system-ui, -apple-system, "Segoe UI", sans-serif);
+  --guild-mono: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--guild-page);
+  color: var(--guild-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--guild-font);
+  line-height: 1.5;
+}
+
+button,
+a {
+  font: inherit;
+}
+
+.guild-app {
+  margin: 0 auto;
+  display: flex;
+  min-height: 100vh;
+  max-width: 72rem;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.5rem 1rem 2rem;
+}
+
+@media (min-width: 640px) {
+  .guild-app {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+.guild-card {
+  border: 1px solid var(--guild-border);
+  border-radius: var(--guild-radius-card);
+  background: var(--guild-card);
+  box-shadow: var(--guild-shadow);
+  padding: 1.25rem;
+}
+
+.guild-card h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--guild-text);
+}
+
+.guild-muted {
+  color: var(--guild-muted);
+}
+
+.guild-faint {
+  color: var(--guild-faint);
+}
+
+.guild-text {
+  color: var(--guild-text);
+}
+
+.guild-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+}
+
+@media (min-width: 1024px) {
+  .guild-grid {
+    grid-template-columns: 1.35fr 1fr;
+  }
+}
+
+.guild-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.guild-header {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+@media (min-width: 640px) {
+  .guild-header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.guild-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.guild-header__title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.guild-header__subtitle {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--guild-muted);
+}
+
+.guild-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.guild-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--guild-border);
+  border-radius: var(--guild-radius-pill);
+  background: var(--guild-panel);
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--guild-muted);
+  white-space: nowrap;
+}
+
+.guild-pill--success {
+  border-color: rgba(28, 130, 52, 0.3);
+  background: #ecfdf3;
+  color: var(--guild-text);
+}
+
+.guild-pill--primary {
+  border: none;
+  background: #eff6ff;
+  color: var(--guild-primary);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.guild-pill--accent {
+  border: none;
+  background: var(--guild-accent-tint);
+  color: var(--guild-accent);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.guild-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--guild-faint);
+}
+
+.guild-dot--success {
+  background: var(--guild-success);
+}
+
+.guild-dot--primary {
+  background: var(--guild-primary);
+}
+
+.guild-stepper__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.guild-stepper__title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.guild-stepper__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+@media (min-width: 640px) {
+  .guild-stepper__grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.guild-step {
+  border: 1px solid var(--guild-border);
+  border-radius: var(--guild-radius-inner);
+  background: var(--guild-panel);
+  padding: 0.5rem 0.75rem;
+}
+
+.guild-step--active {
+  border-color: rgba(3, 125, 214, 0.4);
+  background: #eff6ff;
+}
+
+.guild-step--done {
+  border-color: rgba(28, 130, 52, 0.3);
+  background: rgba(236, 253, 243, 0.5);
+}
+
+.guild-step__num {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--guild-faint);
+}
+
+.guild-step--active .guild-step__num {
+  color: var(--guild-primary);
+}
+
+.guild-step--done .guild-step__num {
+  color: var(--guild-success);
+}
+
+.guild-step__label {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.guild-step__hint {
+  margin: 0;
+  font-size: 0.625rem;
+  line-height: 1.35;
+  color: var(--guild-muted);
+}
+
+.guild-btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.guild-btn {
+  appearance: none;
+  border-radius: var(--guild-radius-pill);
+  border: 1px solid transparent;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s;
+}
+
+.guild-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.guild-btn--primary {
+  border: none;
+  background: var(--guild-primary);
+  color: #fff;
+}
+
+.guild-btn--primary:hover:not(:disabled) {
+  background: var(--guild-primary-hover);
+}
+
+.guild-btn--secondary {
+  border-color: var(--guild-border);
+  background: transparent;
+  color: var(--guild-text);
+  font-weight: 500;
+}
+
+.guild-btn--secondary:hover:not(:disabled) {
+  border-color: var(--guild-primary);
+  color: var(--guild-primary);
+}
+
+.guild-btn--accent {
+  border: none;
+  background: var(--guild-accent);
+  color: #fff;
+}
+
+.guild-btn--ghost {
+  border-style: dashed;
+  border-color: var(--guild-border);
+  background: transparent;
+  color: var(--guild-muted);
+  font-weight: 500;
+}
+
+.guild-btn--danger {
+  border-color: var(--guild-border);
+  background: transparent;
+  color: var(--guild-muted);
+  font-weight: 500;
+}
+
+.guild-panel {
+  border: 1px solid var(--guild-border);
+  border-radius: var(--guild-radius-inner);
+  background: var(--guild-panel);
+  padding: 0.75rem 1rem;
+}
+
+.guild-meta {
+  margin: 1rem 0 0;
+  padding: 0.75rem;
+  border: 1px solid var(--guild-border);
+  border-radius: var(--guild-radius-inner);
+  background: var(--guild-panel);
+  font-size: 0.75rem;
+}
+
+.guild-meta div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.guild-meta dt {
+  color: var(--guild-muted);
+}
+
+.guild-meta dd {
+  margin: 0;
+  font-family: var(--guild-mono);
+  color: var(--guild-text);
+  word-break: break-all;
+}
+
+.guild-standings__job {
+  margin: 1rem 0;
+  border: 1px solid rgba(3, 125, 214, 0.2);
+  border-radius: var(--guild-radius-inner);
+  background: var(--guild-panel);
+  padding: 0.75rem 1rem;
+}
+
+.guild-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.guild-agent {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border: 1px solid var(--guild-border);
+  border-radius: var(--guild-radius-inner);
+  background: var(--guild-card);
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+}
+
+.guild-agent--hired {
+  border-color: rgba(246, 133, 27, 0.4);
+  background: var(--guild-accent-tint);
+  border-left: 3px solid var(--guild-accent);
+}
+
+.guild-agent--selected {
+  border-color: rgba(3, 125, 214, 0.4);
+  background: rgba(239, 246, 255, 0.4);
+}
+
+.guild-agent--ineligible {
+  opacity: 0.45;
+}
+
+.guild-agent__rank {
+  width: 2rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--guild-faint);
+}
+
+.guild-agent--hired .guild-agent__rank {
+  color: var(--guild-accent);
+}
+
+.guild-agent__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.guild-agent__name {
+  margin: 0;
+  font-weight: 600;
+}
+
+.guild-agent--hired .guild-agent__name {
+  color: var(--guild-accent);
+}
+
+.guild-agent__meta {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--guild-muted);
+}
+
+.guild-agent__score {
+  position: relative;
+  width: 7rem;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.guild-agent__score-value {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--guild-primary);
+}
+
+.guild-progress {
+  margin-top: 0.25rem;
+  height: 0.25rem;
+  overflow: hidden;
+  border-radius: var(--guild-radius-pill);
+  background: var(--guild-panel);
+}
+
+.guild-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: var(--guild-radius-pill);
+  background: var(--guild-primary);
+}
+
+.guild-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.guild-toast {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  border: 1px solid var(--guild-border);
+  border-radius: var(--guild-radius-pill);
+  background: var(--guild-card);
+  padding: 0.625rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  box-shadow: var(--guild-shadow);
+}
+
+.guild-ladder__stack > * + * {
+  margin-top: 0.75rem;
+}
+
+.guild-ladder__step {
+  border: 1px solid var(--guild-border);
+  border-radius: var(--guild-radius-inner);
+  background: var(--guild-panel);
+  padding: 0.75rem 1rem;
+}
+
+.guild-ladder__step--contractor {
+  width: 74%;
+}
+
+.guild-ladder__step--specialist {
+  width: 50%;
+  min-width: 180px;
+  border-color: rgba(246, 133, 27, 0.5);
+  background: var(--guild-accent-tint);
+}
+
+.guild-ladder__step--shake {
+  border-color: var(--guild-danger);
+  background: var(--guild-danger-tint);
+  animation: guild-shake 0.45s ease-in-out;
+}
+
+.guild-log {
+  max-height: 13rem;
+  overflow-y: auto;
+}
+
+.guild-log ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.guild-log li {
+  font-size: 0.875rem;
+  line-height: 1.4;
+  margin-bottom: 0.375rem;
+}
+
+.guild-log .log-authority {
+  color: var(--guild-accent);
+}
+
+.guild-log .log-reputation {
+  color: var(--guild-primary);
+}
+
+.guild-log .log-revert {
+  border-radius: var(--guild-radius-inner);
+  background: var(--guild-danger-tint);
+  color: var(--guild-danger);
+  padding: 0.125rem 0.5rem;
+}
+
+.guild-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding-top: 0.5rem;
+}
+
+.guild-registry__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border: 1px solid var(--guild-border);
+  border-radius: var(--guild-radius-inner);
+  background: var(--guild-panel);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+}
+
+.guild-link {
+  font-family: var(--guild-mono);
+  color: var(--guild-primary);
+  text-decoration: underline;
+}
+
+.guild-status {
+  border-radius: var(--guild-radius-pill);
+  padding: 0.125rem 0.625rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.guild-status--ok {
+  background: #ecfdf3;
+  color: var(--guild-success);
+}
+
+.guild-status--bad {
+  background: var(--guild-danger-tint);
+  color: var(--guild-danger);
+}
+
+.guild-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--guild-muted);
+}
+
+.guild-progress-bar {
+  height: 0.25rem;
+  overflow: hidden;
+  border-radius: var(--guild-radius-pill);
+  background: var(--guild-panel);
+}
+
+.guild-progress-bar > div {
+  height: 100%;
+  width: 66%;
+  border-radius: var(--guild-radius-pill);
+  background: var(--guild-primary);
+  animation: guild-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes guild-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20%,
+  60% {
+    transform: translateX(-4px);
+  }
+  40%,
+  80% {
+    transform: translateX(4px);
+  }
+}
+
+@keyframes guild-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

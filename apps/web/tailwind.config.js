@@ -1,9 +1,17 @@
-import type { Config } from "tailwindcss";
-import metamaskPreset from "@metamask/design-system-tailwind-preset";
-
-const config: Config = {
-  presets: [metamaskPreset],
+/** @type {import('tailwindcss').Config} */
+module.exports = {
   content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
+  safelist: [
+    { pattern: /^(bg|text|border)-guild-/ },
+    { pattern: /^bg-guild-accent-tint$/ },
+    { pattern: /^bg-guild-danger-tint$/ },
+    "shadow-soft",
+    "rounded-card",
+    "rounded-inner",
+    "rounded-pill",
+    "animate-shake",
+    "animate-score-pop",
+  ],
   theme: {
     extend: {
       colors: {
@@ -62,5 +70,3 @@ const config: Config = {
   },
   plugins: [],
 };
-
-export default config;

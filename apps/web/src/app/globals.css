@@ -4,7 +4,10 @@
 
 @layer base {
   html {
-    @apply bg-guild-page text-guild-text antialiased;
+    background-color: #ffffff;
+    color: #24272a;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   .tabular-nums {

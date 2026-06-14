@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import "./guild-ui.css";
 import "./globals.css";
 
 const inter = Inter({
@@ -20,7 +21,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={inter.variable}>
-      <body className="min-h-screen bg-guild-page font-sans">{children}</body>
+      <body className="min-h-screen bg-guild-page font-sans guild-body">{children}</body>
     </html>
   );
 }

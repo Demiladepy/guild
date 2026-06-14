@@ -5,23 +5,22 @@ type VeniceCardProps = {
 
 export function VeniceCard({ output, active }: VeniceCardProps) {
   return (
-    <section className="rounded-card border border-guild-border bg-guild-card p-5 shadow-soft">
-      <div className="mb-3 flex items-center gap-2">
+    <section className="guild-card">
+      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
         <span
-          className={`h-2.5 w-2.5 rounded-full ${
-            active ? "bg-guild-primary" : "bg-guild-faint"
-          }`}
+          className={`guild-dot ${active ? "guild-dot--primary" : ""}`}
+          style={{ width: "0.625rem", height: "0.625rem" }}
           aria-hidden
         />
-        <h2 className="text-base font-semibold text-guild-text">
-          Venice · private inference
-        </h2>
+        <h2 style={{ margin: 0 }}>Venice · private inference</h2>
       </div>
-      <div className="min-h-[88px] rounded-inner border border-guild-border bg-guild-panel px-4 py-3">
+      <div className="guild-panel" style={{ minHeight: "5.5rem" }}>
         {output ? (
-          <p className="text-sm leading-relaxed text-guild-text">{output}</p>
+          <p className="guild-text" style={{ margin: 0, fontSize: "0.875rem", lineHeight: 1.6 }}>
+            {output}
+          </p>
         ) : (
-          <p className="text-sm text-guild-faint">
+          <p className="guild-faint" style={{ margin: 0, fontSize: "0.875rem" }}>
             Model output appears after x402 payment settles.
           </p>
         )}

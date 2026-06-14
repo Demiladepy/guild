@@ -6,6 +6,9 @@ export type Agent = {
   capability: Capability;
   score: number;
   jobsCompleted: number;
+  onChain?: boolean;
+  explorerUrl?: string;
+  address?: `0x${string}`;
 };
 
 export type LogVariant = "default" | "authority" | "reputation" | "revert";

@@ -7,12 +7,9 @@ const FOOTER_PILLS = [
 
 export function Footer() {
   return (
-    <footer className="flex flex-wrap gap-2 pt-2">
+    <footer className="guild-footer">
       {FOOTER_PILLS.map((pill) => (
-        <span
-          key={pill}
-          className="rounded-pill border border-guild-border bg-guild-panel px-3 py-1 text-xs text-guild-muted"
-        >
+        <span key={pill} className="guild-pill">
           {pill}
         </span>
       ))}
